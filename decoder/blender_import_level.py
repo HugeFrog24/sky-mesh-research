@@ -48,7 +48,7 @@ from sky_mesh.mesh import parse_mesh_file
 
 bl_info = {
     "name": "Sky Level Importer",
-    "author": "Userlib-SML",
+    "author": "",
     "version": (1, 0, 0),
     "blender": (3, 0, 0),
     "location": "File > Import > Sky Level Map",

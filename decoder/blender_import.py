@@ -36,7 +36,7 @@ from sky_mesh.texture import TextureResolver, decode_ktx_texture
 
 bl_info = {
     "name": "Sky Mesh Importer",
-    "author": "Userlib-SML",
+    "author": "",
     "version": (1, 0, 0),
     "blender": (3, 0, 0),
     "location": "File > Import > Sky Mesh (.mesh)",

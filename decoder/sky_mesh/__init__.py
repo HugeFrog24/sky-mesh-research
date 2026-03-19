@@ -1,7 +1,7 @@
 """
 Sky: Children of the Light — mesh and level decoder.
 
-Parses the proprietary binary formats used by thatgamecompany's Sky engine
+Parses the proprietary binary formats used by Sky's engine
 (bootloader version 0.11.0). Supports:
   - .mesh files: geometry, skeleton, bone weights, animation
   - BstBaked.meshes: level terrain, baked lighting, clouds

@@ -6,7 +6,7 @@
 
 ## 1. High-Level Architecture
 
-Sky's mesh system is built on a custom engine (thatgamecompany's in-house tech, not Unity/Unreal). The hierarchy is:
+Sky's mesh system is built on a custom engine (not Unity/Unreal). The hierarchy is:
 
 ```
 Mesh (resource)
@@ -17,7 +17,7 @@ Mesh (resource)
               └── AnimKeyData[]  (per-animation keyframe data)
 ```
 
-A `Mesh` is a **resource** loaded from binary pack files (`.mesh` inside `.pack` TAR archives). Each `Mesh` carries bake-time **flags/tags** that fundamentally change what data is present and how it's encoded. These flags are set at asset-bake time (on TGC's build pipeline) and are baked into the binary file header.
+A `Mesh` is a resource loaded from binary pack files (`.mesh` inside `.pack` TAR archives). Each `Mesh` carries bake-time flags/tags that fundamentally change what data is present and how it's encoded. These flags are set at asset-bake time and are baked into the binary file header.
 
 A `LevelMesh` is a placed instance of a mesh in a level, with additional per-instance properties (transform, shader, animation, physics). An `AvatarRender` manages the special case of avatar/Sky-kid meshes with outfit swapping.
 
@@ -34,25 +34,25 @@ These are the `Mesh` member variables registered to the meta-system. Each is a `
 | `source` | `"source"` | Path to source FBX/asset (metadata only, not used at runtime) |
 | `sharedSkeleton` | `"sharedSkeleton"` | If true, skeleton data is shared with another mesh (e.g. avatar body shares skeleton with cape). The mesh itself carries no skeleton — it references an external one. |
 | `loadAsync` | `"loadAsync"` | Controls whether loading happens on a background thread |
-| **`stripGeometry`** | `"stripGeometry"` | **Strips all vertex position/normal/UV data.** The mesh becomes a skeleton-only container (no renderable geometry). Used for animation-only assets. |
-| **`stripAnimation`** | `"stripAnimation"` | **Strips all animation data.** The mesh has geometry but no baked animations. Static meshes or meshes animated entirely by code/physics. |
+| `stripGeometry` | `"stripGeometry"` | Strips all vertex position/normal/UV data. The mesh becomes a skeleton-only container (no renderable geometry). Used for animation-only assets. |
+| `stripAnimation` | `"stripAnimation"` | Strips all animation data. The mesh has geometry but no baked animations. Static meshes or meshes animated entirely by code/physics. |
 | `additive` | `"additive"` | Marks the animation pack as additive (layered on top of a base pose) |
-| **`uncompressedAnim`** | `"uncompressedAnim"` | If true, animation keyframes are stored as full float quaternions (16 bytes/key). If false, they use a compressed 8-byte half-float format. |
-| **`computeOcclusions`** | `"computeOcclusions"` | **"CompOcc"** — Generates occlusion data: a separate triangle mesh + per-vertex occlusion values appended after the LOD data. Used for ambient occlusion baking on characters. |
-| **`computeEdges`** | `"computeEdges"` | Generates edge connectivity data (for silhouette/outline rendering or shadow volume extrusion). Stored as per-vertex edge index arrays. |
-| **`computeAdjacency`** | `"computeAdjacency"` | Generates triangle adjacency data (extends the index buffer with neighbor info). Used for geometry-shader-based effects. |
-| **`compressPositions`** | `"compressPositions"` | Quantizes vertex positions from float32 to a compressed format (`MeshPosCompressed`). Positions are dequantized at load time using the bounding box. |
-| **`compressUvs`** | `"compressUvs"` | Quantizes UV coordinates from float32 to a compressed fixed-point format (`MeshUvCompressed` / `MeshUvFixed`). Decompressed at load time by `DecompressUvs()`. |
-| **`stripUv13`** | `"stripUv13"` | **"StripUV"** — Strips UV channels 1 and 3 (keeps only UV0 and UV2). Reduces mesh size for assets that don't need lightmap or detail UVs. |
-| **`stripNormals`** | `"stripNormals"` | Strips vertex normals entirely. Normals are recomputed at load time from geometry via `ComputeMeshNormals()`. |
+| `uncompressedAnim` | `"uncompressedAnim"` | If true, animation keyframes are stored as full float quaternions (16 bytes/key). If false, they use a compressed 8-byte half-float format. |
+| `computeOcclusions` | `"computeOcclusions"` | "CompOcc" — Generates occlusion data: a separate triangle mesh + per-vertex occlusion values appended after the LOD data. Used for ambient occlusion baking on characters. |
+| `computeEdges` | `"computeEdges"` | Generates edge connectivity data (for silhouette/outline rendering or shadow volume extrusion). Stored as per-vertex edge index arrays. |
+| `computeAdjacency` | `"computeAdjacency"` | Generates triangle adjacency data (extends the index buffer with neighbor info). Used for geometry-shader-based effects. |
+| `compressPositions` | `"compressPositions"` | Quantizes vertex positions from float32 to a compressed format (`MeshPosCompressed`). Positions are dequantized at load time using the bounding box. |
+| `compressUvs` | `"compressUvs"` | Quantizes UV coordinates from float32 to a compressed fixed-point format (`MeshUvCompressed` / `MeshUvFixed`). Decompressed at load time by `DecompressUvs()`. |
+| `stripUv13` | `"stripUv13"` | "StripUV" — Strips UV channels 1 and 3 (keeps only UV0 and UV2). Reduces mesh size for assets that don't need lightmap or detail UVs. |
+| `stripNormals` | `"stripNormals"` | Strips vertex normals entirely. Normals are recomputed at load time from geometry via `ComputeMeshNormals()`. |
 | `registerCollision` | `"registerCollision"` | Registers the mesh geometry with the `CollisionGeoBarn` for physics raycasts |
-| **`forceIndex32`** | `"forceIndex32"` | Forces 32-bit index buffers even for small meshes. Without this, meshes with <65536 vertices use 16-bit indices. |
+| `forceIndex32` | `"forceIndex32"` | Forces 32-bit index buffers even for small meshes. Without this, meshes with <65536 vertices use 16-bit indices. |
 
 ### What "StripUV" and "CompOcc" Mean
 
-- **StripUV** = `stripUv13` flag. The mesh has only UV channel 0 (and possibly UV2). UV channels 1 and 3 have been removed to save memory. This is common for characters where only one texture atlas is needed.
+- StripUV = `stripUv13` flag. The mesh has only UV channel 0 (and possibly UV2). UV channels 1 and 3 have been removed to save memory. This is common for characters where only one texture atlas is needed.
   
-- **CompOcc** = `computeOcclusions` flag. An occlusion mesh is appended after the LOD data. This is a simplified triangle mesh with per-vertex float occlusion values, used for baked ambient occlusion on character models. At load time the data is read from the `tag_Occlusion` section of the binary.
+- CompOcc = `computeOcclusions` flag. An occlusion mesh is appended after the LOD data. This is a simplified triangle mesh with per-vertex float occlusion values, used for baked ambient occlusion on character models. At load time the data is read from the `tag_Occlusion` section of the binary.
 
 ---
 
@@ -67,7 +67,7 @@ The `.mesh` file is read in two stages: `Mesh::Load` reads the version, then del
               Passed to LoadFromFileBuffer as param_3
 ```
 
-**From hex dump of actual .mesh file:**
+From hex dump of actual .mesh file:
 `1e 00 00 00 43 68 61 72 ...` → version=0x1e, then mesh name "Char..."
 
 ### Inner Header (read by `LoadFromFileBuffer`, starting at byte 4)
@@ -78,7 +78,7 @@ The `.mesh` file is read in two stages: `Mesh::Load` reads the version, then del
 [1 byte]      bool: hasOcclusion (controls whether occlusion data follows LODs)
 ```
 
-**NOTE:** `hasAnimation` means the mesh has bone weight data and a skeleton
+NOTE: `hasAnimation` means the mesh has bone weight data and a skeleton
 (AnimPackData), even if `stripAnimation` was set. A mesh with `stripAnimation=true`
 will have `hasAnimation=true` (bone weights + skeleton) but the AnimPackData will
 contain `animationCount=0` (no baked keyframes). The engine animates it via shared
@@ -93,14 +93,14 @@ if compressionMode == 1:
     [compressedSize bytes]  Compressed LOD data → LZ4_decompress_safe()
 ```
 
-**Compression algorithm: LZ4.**  
+Compression algorithm: LZ4.  
 `Decompress(CompressionType, input, output, compressedSize, maxOutputSize)` → returns actual
 decompressed byte count. CompressionType must be 0 or 1 (both use `LZ4_decompress_safe`).
 Type ≥ 2 asserts `"Invalid compression type"`. Source: `Compression.cpp`.
 
 ### Per-LOD Data — `MeshData::LoadLodsFromBuffer`
 
-Each LOD is a `MeshLod` struct of **0x130 bytes** (stride). For each of `lodCount` LODs:
+Each LOD is a `MeshLod` struct of 0x130 bytes (stride). For each of `lodCount` LODs:
 
 ```
 [4 bytes]     float: LOD switchDistance (INFINITY = auto-compute from bounding box)
@@ -108,13 +108,13 @@ Each LOD is a `MeshLod` struct of **0x130 bytes** (stride). For each of `lodCoun
 [12 bytes]    vec3: bounding box max (AABB)
 ```
 
-**Version ≥ 0x1c adds:**
+Version ≥ 0x1c adds:
 ```
 [12 bytes]    vec3: skinned bounding box min
 [12 bytes]    vec3: skinned bounding box max
 ```
 
-**Version ≥ 0x1d adds:**
+Version ≥ 0x1d adds:
 ```
 [32 bytes]    extended bounds data (0x20 bytes at offset +0x34)
 [32 bytes]    extended bounds data (0x20 bytes at offset +0x54)
@@ -134,7 +134,7 @@ Each LOD is a `MeshLod` struct of **0x130 bytes** (stride). For each of `lodCoun
 [4 bytes]     int32:  extraIndexCount    (MeshLod+0x90)  — extra triangle strips
 ```
 
-**Version ≥ 0x1c adds 3 bools + 3 ints for compressed channels:**
+Version ≥ 0x1c adds 3 bools + 3 ints for compressed channels:
 ```
 [1 byte]      bool: hasNormals           (local_90, default=true)
 [1 byte]      bool: hasSecondaryIndices  (local_8c, default=true)
@@ -164,17 +164,17 @@ All buffers are flat arrays read with `BinaryStream::m_SerializeBytes`:
 
 | Buffer | Size formula | Struct | Description |
 |--------|-------------|--------|-------------|
-| **Positions** | `vertexCount * 16` | `MeshPos` | 4 floats per vertex: x, y, z, w (w=1.0 or bone index) — 16 bytes/vert |
-| **Normals** (if hasNormals) | `vertexCount * 4` in file | `MeshNorm` (4B) | `{int8 nx, ny, nz, nw}`: 3 components stored directly, decode as `byte/128.0`. (Alloc is +4 for alignment) |
-| **UVs** | `vertexCount * 16` | `MeshUv` | 4 floats per vertex: u0, v0, u1, v1 (two UV channels packed) |
-| **Bone data** (if hasAnimation) | `vertexCount * 8` | `MeshWeight` (8B) | `{uint8 boneIdx[4], uint8 weight[4]}`: weights decode as `byte/255.0`; verts sorted by influence count |
-| **Index buffer** | `indexCount * stride` | uint16 or uint32 | stride = 2 (uint16) or 4 (uint32) based on indexFormat |
-| **Secondary indices** (if hasSecondaryIndices) | `indexCount * stride` | uint16 or uint32 | Additional index buffer (for dual-pass rendering or edge detection) |
-| **Morph target indices** (if morphTargetCount > 0) | `vertexCount * stride` | uint16 or uint32 | Per-vertex morph target membership |
-| **Edge indices** (if edgeCount > 0) | `vertexCount * stride` | uint16 or uint32 | Edge connectivity for silhouette |
-| **Adjacency** (if adjacencyCount > 0) | `adjacencyCount * stride` | uint16 or uint32 | Triangle adjacency (count × 2 indices each) |
-| **Bone weights** (if boneWeightCount > 0) | `boneWeightCount * 4` | `MeshWeight` | Separate weight array for software skinning |
-| **Extra strip indices** (if extraIndexCount > 0) | `extraIndexCount × 2 × stride` | uint16 or uint32 | Additional triangle strip indices |
+| Positions | `vertexCount * 16` | `MeshPos` | 4 floats per vertex: x, y, z, w (w=1.0 or bone index) — 16 bytes/vert |
+| Normals (if hasNormals) | `vertexCount * 4` in file | `MeshNorm` (4B) | `{int8 nx, ny, nz, nw}`: 3 components stored directly, decode as `byte/128.0`. (Alloc is +4 for alignment) |
+| UVs | `vertexCount * 16` | `MeshUv` | 4 floats per vertex: u0, v0, u1, v1 (two UV channels packed) |
+| Bone data (if hasAnimation) | `vertexCount * 8` | `MeshWeight` (8B) | `{uint8 boneIdx[4], uint8 weight[4]}`: weights decode as `byte/255.0`; verts sorted by influence count |
+| Index buffer | `indexCount * stride` | uint16 or uint32 | stride = 2 (uint16) or 4 (uint32) based on indexFormat |
+| Secondary indices (if hasSecondaryIndices) | `indexCount * stride` | uint16 or uint32 | Additional index buffer (for dual-pass rendering or edge detection) |
+| Morph target indices (if morphTargetCount > 0) | `vertexCount * stride` | uint16 or uint32 | Per-vertex morph target membership |
+| Edge indices (if edgeCount > 0) | `vertexCount * stride` | uint16 or uint32 | Edge connectivity for silhouette |
+| Adjacency (if adjacencyCount > 0) | `adjacencyCount * stride` | uint16 or uint32 | Triangle adjacency (count × 2 indices each) |
+| Bone weights (if boneWeightCount > 0) | `boneWeightCount * 4` | `MeshWeight` | Separate weight array for software skinning |
+| Extra strip indices (if extraIndexCount > 0) | `extraIndexCount × 2 × stride` | uint16 or uint32 | Additional triangle strip indices |
 
 ### Summed Area Array
 ```
@@ -191,7 +191,7 @@ If `compressedPosCount > 0`:
 [vertexCount]       Per-vertex W component bytes (1 byte/vert)
 ```
 
-**MeshPosCompressed encoding (from `ComputeCompressedPositions`):**
+MeshPosCompressed encoding (from `ComputeCompressedPositions`):
 ```
   uint32 packed = (X_10bit << 20) | (Y_10bit << 10) | Z_10bit
 
@@ -211,9 +211,9 @@ If `compressedUvCount > 0`:
 [vertexCount * 4]   Compressed UVs (4 bytes/vert, MeshUvCompressed)
 ```
 
-**MeshUvCompressed encoding (fully traced from `ComputeCompressedUvs` + `DecompressUvs`):**
+MeshUvCompressed encoding (fully traced from `ComputeCompressedUvs` + `DecompressUvs`):
 
-Each compressed UV is **4 bytes = 4 × uint8**, one byte per UV component (u0, v0, u1, v1).
+Each compressed UV is 4 bytes = 4 × uint8, one byte per UV component (u0, v0, u1, v1).
 Each byte is quantized to [0, 255] using per-channel bounding boxes stored in the MeshLod:
 
 ```
@@ -299,7 +299,7 @@ For each bone i (0..boneCount-1):
                 Scale     → 12 bytes (3 × float32, Vector3 serialization)
                 Rotation  → 16 bytes (4 × float32, Quat serialization)
                 Translation → 12 bytes (3 × float32, Vector3 serialization)
-              Total per bone: 12 + 16 + 12 = **40 bytes serialized** (not 48!)
+              Total per bone: 12 + 16 + 12 = 40 bytes serialized (not 48!)
               The 4-byte padding in each Vector3 exists only in memory, NOT in file.
 
 ─── Animation Keyframe Data ───
@@ -319,7 +319,7 @@ if compressionType is 0 (or ≥3):
 TryComputeMirroredAnims(this)  — computes left↔right bone mirror mapping
 ```
 
-**Skeleton in-memory layout:**
+Skeleton in-memory layout:
 ```
 this+0x54 : int32   boneCount
 this+0x48 : int32   animationCount
@@ -334,7 +334,7 @@ this+0x78 : ptr     boneNameOffsets (boneCount × uint16, offset into name table
 this+0x80 : ptr     boneNameTable (concatenated null-terminated strings)
 ```
 
-**GetBoneName(index)** returns: `nameTable[nameOffsets[index]]` (uint16 offset lookup).
+GetBoneName(index) returns: `nameTable[nameOffsets[index]]` (uint16 offset lookup).
 
 ### Animation Keyframe Format — `LoadAnimations` + `ReadAnimation`
 
@@ -410,18 +410,18 @@ Each AnimationData = 128 bytes (0x80) in memory. Binary layout:
     [perFrameTransKeyCount * 6 or 12]  Translation keys
 ```
 
-**Keyframe channel sizes depend on `compressionType` (from AnimPackData+0x4C):**
+Keyframe channel sizes depend on `compressionType` (from AnimPackData+0x4C):
 
 | Channel | compressionType != 2 | compressionType == 2 |
 |---------|---------------------|---------------------|
-| **Rotation** | 16 bytes: Quaternion as 4 × float32 | **8 bytes: Quaternion as 4 × float16 (half-precision)** |
-| **Translation** | 12 bytes: Vec3 as 3 × float32 | **6 bytes: Vec3 as 3 × float16** ONLY if BOTH compressionType==2 AND per-anim flags&1; otherwise 12 bytes float32 even when compressionType==2 |
-| **Scale** | 12 bytes: Vec3 as 3 × float32 | 12 bytes: Vec3 as 3 × float32 (same) |
+| Rotation | 16 bytes: Quaternion as 4 × float32 | 8 bytes: Quaternion as 4 × float16 (half-precision) |
+| Translation | 12 bytes: Vec3 as 3 × float32 | 6 bytes: Vec3 as 3 × float16 ONLY if BOTH compressionType==2 AND per-anim flags&1; otherwise 12 bytes float32 even when compressionType==2 |
+| Scale | 12 bytes: Vec3 as 3 × float32 | 12 bytes: Vec3 as 3 × float32 (same) |
 
-**The "compressed" animation format is simply IEEE 754 half-precision (float16).**
+The "compressed" animation format is simply IEEE 754 half-precision (float16).
 No exotic quantization — standard `numpy.float16` / Python `struct.unpack('<e')` decoding.
 
-**AnimPackKeys in-memory layout (key storage arrays):**
+AnimPackKeys in-memory layout (key storage arrays):
 ```
 +0x00 : uint32   boneCount
 +0x08 : ptr      restPoseData (boneCount × 48 bytes)
@@ -449,7 +449,7 @@ A "rigged mesh" in Sky is one where `hasAnimation == true`. The engine provides 
 
 ### Vertex position format — `MeshPos`
 
-From `ComputeMeshBounds`, positions are accessed at stride **0x10 (16 bytes)**, with XYZ at offsets 0/4/8 within each vertex:
+From `ComputeMeshBounds`, positions are accessed at stride 0x10 (16 bytes), with XYZ at offsets 0/4/8 within each vertex:
 ```c
 pfVar3 = (float *)(meshLod->positions + 8);  // starts at byte 8 (Z component)
 pfVar3[-2]  // X
@@ -463,12 +463,12 @@ So `MeshPos` = `{ float x, y, z, w }` — 16 bytes. The `w` component is typical
 ### Bone weight format — `MeshWeight`
 
 From `SkinVertsNormsLoop<4>` and `SkinMeshPosAndNormals`:
-- `MeshWeight` = **8 bytes**: `{ uint8 boneIndex[4], uint8 weight[4] }`
+- `MeshWeight` = 8 bytes: `{ uint8 boneIndex[4], uint8 weight[4] }`
 - Bytes 0–3: bone indices (each indexes into the bone matrix array)
 - Bytes 4–7: bone weights (each `/ 255.0` to get float weight)
 - Weights sum to ~255 (1.0 after normalization)
 
-**Vertex sorting by bone influence count:**
+Vertex sorting by bone influence count:
 Vertices in all buffers (positions, normals, UVs, weights) are sorted into groups by how
 many bone influences they use. The partition counts at MeshLod+0x94 define group sizes:
 ```
@@ -482,10 +482,10 @@ For 2-bone vertices, indices 0-1 and weights 0-1 are used, etc.
 
 ### Normal format — `MeshNorm`
 
-**`MeshNorm` = 4 bytes: `{ int8 nx, int8 ny, int8 nz, int8 nw }`** — all 3 normal components
+`MeshNorm` = 4 bytes: `{ int8 nx, int8 ny, int8 nz, int8 nw }` — all 3 normal components
 are stored directly. Z is NOT reconstructed.
 
-**Encoding** (from `PackNormals` implementation):
+Encoding (from `PackNormals` implementation):
 ```c
   // Normalize input vector
   float invLen = rsqrt(nx*nx + ny*ny + nz*nz);
@@ -495,7 +495,7 @@ are stored directly. Z is NOT reconstructed.
   // Clamped to [-128, 127] per component
 ```
 
-**Decoding** (from `SkinMeshPosAndNormals` skinning code):
+Decoding (from `SkinMeshPosAndNormals` skinning code):
 ```c
   float nx = (float)(int8)byte0 * 0.0078125f;  // = byte / 128.0
   float ny = (float)(int8)byte1 * 0.0078125f;
@@ -549,20 +549,20 @@ The `ModelRenderPass` enum defines pipeline stages:
 
 Avatar meshes are the most complex case. The pipeline:
 
-1. **`AvatarOutfit`** manages the cosmetic state (what the player is wearing). It holds outfit slot hashes and resolves them to mesh resource names.
+1. `AvatarOutfit` manages the cosmetic state (what the player is wearing). It holds outfit slot hashes and resolves them to mesh resource names.
 
-2. **`AvatarRender::GetMeshDataFromOutfit()`** resolves the outfit state to actual mesh data, looking up meshes by name from the resource manager. Each outfit piece is a separate `Mesh` resource.
+2. `AvatarRender::GetMeshDataFromOutfit()` resolves the outfit state to actual mesh data, looking up meshes by name from the resource manager. Each outfit piece is a separate `Mesh` resource.
 
-3. **`AvatarRender::Update()`** runs every frame:
+3. `AvatarRender::Update()` runs every frame:
    - Gets the current skeleton pose from `AvatarPose` (which runs the `AnimationInstance` blend tree)
    - Calls `SkinMeshPosAndNormals()` or `SkinVertsNormsLoop<4>()` to deform the mesh onto the skeleton
    - Submits the deformed mesh to the render lists
 
-4. **`AvatarRender::TriangleRangeForOutfit()`** — determines which triangles of the combined avatar mesh belong to which outfit piece (for per-piece shader assignment).
+4. `AvatarRender::TriangleRangeForOutfit()` — determines which triangles of the combined avatar mesh belong to which outfit piece (for per-piece shader assignment).
 
-5. **`AvatarRender::RandomPosOnMesh()`** — picks random positions on the avatar surface for particle emission (wing glow, charcoal effects).
+5. `AvatarRender::RandomPosOnMesh()` — picks random positions on the avatar surface for particle emission (wing glow, charcoal effects).
 
-6. The skeleton is managed by **`AnimationInstance`**:
+6. The skeleton is managed by `AnimationInstance`:
    - `GetBoneCount()` — returns the bone count (max 256)
    - `GetBoneRestMatrixByIndex()` — returns the inverse bind pose matrix for a bone
    - Bone names are 64-byte null-terminated strings in the skeleton data
@@ -605,48 +605,48 @@ For mesh decoding purposes, clumps are not directly relevant — the mesh data i
 
 ### Key Format Notes
 
-- **No file magic:** The `.mesh` binary has no magic bytes. You must know the version (0x19–0x1e) and parse sequentially.
-- **Version sensitivity:** Format changes between versions. Each version adds fields (documented in §3).
-- **Pack files:** Standard POSIX USTAR TAR archives — `tar xf` or Python `tarfile`. See §13.
-- **Compression:** LZ4 throughout — both mesh LOD wrapper and animation data use `LZ4_decompress_safe()`.
+- No file magic: The `.mesh` binary has no magic bytes. You must know the version (0x19–0x1e) and parse sequentially.
+- Version sensitivity: Format changes between versions. Each version adds fields (documented in §3).
+- Pack files: Standard POSIX USTAR TAR archives — `tar xf` or Python `tarfile`. See §13.
+- Compression: LZ4 throughout — both mesh LOD wrapper and animation data use `LZ4_decompress_safe()`.
 
 ### Verdict: Fully Feasible
 
-All critical data formats are fully reverse-engineered:
+All critical data formats are fully documented:
 
-- **Triangle mesh geometry** — positions (float32 or 10-10-10 compressed), normals (3×int8, all stored), UVs (float32 or compressed), indices (u16/u32)
-- **Armature (skeleton)** — bone names (64B strings), parent hierarchy (int32), inverse bind matrices (4×4 float)
-- **Vertex groups (bone weight painting)** — `{uint8 idx[4], uint8 wt[4]}`, vertices sorted by influence count
-- **UV maps** — up to 2 channels (4 channels if `stripUv13` is not set)
-- **LODs** — multiple detail levels with bounding boxes
-- **Animations** — uncompressed (float32) or compressed (float16 — standard IEEE 754 half-precision) + outer LZ4 wrapper
+- Triangle mesh geometry — positions (float32 or 10-10-10 compressed), normals (3×int8, all stored), UVs (float32 or compressed), indices (u16/u32)
+- Armature (skeleton) — bone names (64B strings), parent hierarchy (int32), inverse bind matrices (4×4 float)
+- Vertex groups (bone weight painting) — `{uint8 idx[4], uint8 wt[4]}`, vertices sorted by influence count
+- UV maps — up to 2 channels (4 channels if `stripUv13` is not set)
+- LODs — multiple detail levels with bounding boxes
+- Animations — uncompressed (float32) or compressed (float16 — standard IEEE 754 half-precision) + outer LZ4 wrapper
 
 See §13 for pack files, §14 for textures/materials, §17–§18 for level maps, §27 for level materials.
 
 ### Recommended approach
 
-1. **Phase 1 — Pack file extraction:** `.pack` files are standard TAR archives — use `tar xf` or Python `tarfile` module. See §13.
+1. Phase 1 — Pack file extraction: `.pack` files are standard TAR archives — use `tar xf` or Python `tarfile` module. See §13.
 
-2. **Phase 2 — Mesh geometry decoder (Python):**
+2. Phase 2 — Mesh geometry decoder (Python):
    - Parse the binary stream following the `LoadFromFileBuffer` / `LoadLodsFromBuffer` layout documented above
    - Handle version differences (0x19–0x1e)
    - Handle LZ4 compression wrapper (`pip install lz4`)
    - Output positions, normals, UVs, indices as arrays
    - Handle compressed positions (10-10-10 bit unpacking + AABB denormalization)
 
-3. **Phase 3 — Skeleton + weights decoder:**
+3. Phase 3 — Skeleton + weights decoder:
    - Parse `AnimPackData::LoadFromBuffer` byte-by-byte (format fully documented above)
    - Per bone: read 64B name, 64B inverse bind matrix (4×4 float), 4B parent index
    - Map vertex bone weights/indices to named bones
    - Handle bone influence partition (vertices sorted by influence count)
 
-4. **Phase 4 — Animation decoder:**
+4. Phase 4 — Animation decoder:
    - Parse animation header (startFrame, endFrame, flags)
    - Read per-frame keyframe channels: scale (vec3), rotation (quat), translation (vec3)
    - If compressionType == 2: decode float16 rotations/translations with `struct.unpack('<e')` or `numpy.float16`
    - If compressionType == 0: read float32 directly
 
-5. **Phase 5 — Blender import script:**
+5. Phase 5 — Blender import script:
    - Create mesh from vertex/index arrays
    - Create armature from bone data (names, parents, inverse bind matrices)
    - Assign vertex groups from weights
@@ -884,7 +884,7 @@ def read_skeleton(stream, version):
 
 ### Pack files are standard POSIX TAR archives
 
-The `ResourcePack::Load` function directly parses USTAR (POSIX tar) header fields at the correct offsets using `sscanf("%o")` (octal ASCII parsing), confirming that **`.pack` files are standard tar archives**.
+The `ResourcePack::Load` function directly parses USTAR (POSIX tar) header fields at the correct offsets using `sscanf("%o")` (octal ASCII parsing), confirming that `.pack` files are standard tar archives.
 
 ### `ResourcePack::Load` (at offset 1496458)
 
@@ -915,12 +915,12 @@ ResourcePack::Load(this, vfs, path, buffer, maxSize) {
 | 0x64 | 8 | File mode (octal ASCII) | Not parsed |
 | 0x6C | 8 | Owner UID (octal ASCII) | Not parsed |
 | 0x74 | 8 | Group GID (octal ASCII) | Not parsed |
-| **0x7C** | **12** | **File size (octal ASCII)** | **Parsed: `sscanf(entry+0x7C, "%o", &size)`** |
-| **0x88** | **12** | **Modification time (octal ASCII)** | **Parsed: `sscanf(entry+0x88, "%o", &mtime)`** |
-| **0x94** | 8 | **Checksum** | **Used as validity sentinel: `entry[0x94] != '\0'`** |
+| 0x7C | 12 | File size (octal ASCII) | Parsed: `sscanf(entry+0x7C, "%o", &size)` |
+| 0x88 | 12 | Modification time (octal ASCII) | Parsed: `sscanf(entry+0x88, "%o", &mtime)` |
+| 0x94 | 8 | Checksum | Used as validity sentinel: `entry[0x94] != '\0'` |
 | 0x9C | 1 | Type flag | Not parsed (all regular files) |
 | 0x101 | 6 | "ustar" magic | Not checked |
-| **0x200** | — | **Start of file data** | **`entries[n].dataPtr = entry + 0x200`** |
+| 0x200 | — | Start of file data | `entries[n].dataPtr = entry + 0x200` |
 
 Data is padded to 512-byte boundaries: `alignedSize = (size + 511) & ~511`.
 
@@ -998,8 +998,8 @@ Examples:
 
 The Virtual File System has two backends:
 
-1. **Android Asset Manager** (`AAssetManager_open`) — reads from APK assets when base path is empty
-2. **File system** (`fopen`) — reads from disk when base path is set:
+1. Android Asset Manager (`AAssetManager_open`) — reads from APK assets when base path is empty
+2. File system (`fopen`) — reads from disk when base path is set:
    ```c
    snprintf(path, 0x200, "%s/%s", basePath, requestedFile);
    fopen(path, "r");
@@ -1034,14 +1034,14 @@ Data/Levels/{level}/Resources.lua  → per-level resources (loaded/unloaded with
 ### Texture file format: KTX1 with pre-transcoded GPU data
 
 Textures are stored at `Data/Images/Bin/ETC2/{name}.ktx` (or `ASTC/` on devices
-supporting ASTC). Files are **KTX1** containers with pre-transcoded, GPU-ready
+supporting ASTC). Files are KTX1 containers with pre-transcoded, GPU-ready
 compressed texture data. The format subdirectory is selected at path construction
 time by `Image::Load`.
 
-**Basis Universal is dead code at runtime.** The binary contains the full
+Basis Universal is dead code at runtime. The binary contains the full
 `basist::basisu_transcoder` library (statically linked), but no code path in
 `Image::Load` or any texture-loading function calls it. Basis transcoding happens
-at **build time** in TGC's asset pipeline: source textures → `.basis` → per-platform
+at build time in the asset pipeline: source textures → `.basis` → per-platform
 KTX1 outputs with ETC2 or ASTC data baked in.
 
 The runtime flow:
@@ -1052,7 +1052,7 @@ The runtime flow:
 5. If device lacks hardware ASTC support: software `ASTC::Decompress` → RGBA fallback
 6. `Texture::UnmapBuffer` → GPU upload
 
-The renderer is **Vulkan-based** (`VulkanRenderer::CreateTexture`), not OpenGL.
+The renderer is Vulkan-based (`VulkanRenderer::CreateTexture`), not OpenGL.
 GL format enums in the KTX header are used only for format identification.
 
 ### Supported GL format enums (from KTX header)
@@ -1087,7 +1087,7 @@ The `ETC2/` subdirectory is selected based on the device's GPU texture format su
 
 Files are KTX1 with ETC2 compressed data. For offline decoding to PNG:
 
-1. **Python `texture2ddecoder` + `Pillow`** (used by the decoder CLI):
+1. Python `texture2ddecoder` + `Pillow` (used by the decoder CLI):
    ```python
    import texture2ddecoder
    from PIL import Image
@@ -1097,12 +1097,12 @@ Files are KTX1 with ETC2 compressed data. For offline decoding to PNG:
    img.save("output.png")
    ```
 
-2. **PVRTexToolCLI** (free from Imagination Technologies):
+2. PVRTexToolCLI (free from Imagination Technologies):
    ```bash
    PVRTexToolCLI -d output.png -i input.ktx
    ```
 
-3. **etcpack** / **etctool** for standalone ETC2 decompression
+3. etcpack / etctool for standalone ETC2 decompression
 
 ### Material system — `LevelMaterial` and `LevelMesh`
 
@@ -1176,7 +1176,7 @@ Produces filename: `CharSkyKid_Body_ClassicShortPants_StripAnim_CompOcc_ZipPos_Z
 
 ### Avatar outfit texture pipeline — `OutfitDefs.json` schema (fully traced from APK)
 
-**`OutfitDefs.json`** is a JSON array where each entry has this schema:
+`OutfitDefs.json` is a JSON array where each entry has this schema:
 
 ```json
 {
@@ -1227,8 +1227,8 @@ Produces filename: `CharSkyKid_Body_ClassicShortPants_StripAnim_CompOcc_ZipPos_Z
 
 ### CRITICAL: Texture Atlas + ImageRegion System
 
-**Textures in OutfitDefs are NOT direct file references — they are `ImageRegion` names
-that map to sub-rectangles within texture atlases.**
+Textures in OutfitDefs are NOT direct file references — they are `ImageRegion` names
+that map to sub-rectangles within texture atlases.
 
 Declared in `Persistent.lua`:
 ```lua
@@ -1272,17 +1272,17 @@ Some textures ARE standalone files (not atlas regions):
 
 ## 15. Critical Serialization Sizes — BinaryStream Overloads
 
-**From Ghidra decompile of BinaryStream::Serialize overloads:**
+From decompile of BinaryStream::Serialize overloads:
 
 | Type | In-Memory Size | Serialized Size | Details |
 |------|---------------|-----------------|---------|
-| `int32` / `uint32` / `float` | 4 bytes | **4 bytes** | Single Serialize() call |
-| `Vector3` | 16 bytes (0x10) | **12 bytes** | 3 × Serialize(float), NO padding |
-| `Vector4` | 16 bytes | **16 bytes** | 4 × Serialize(float) |
-| `Quat` | 16 bytes (0x10) | **16 bytes** | 4 × Serialize(float) |
-| `SQT` (Scale+Quat+Trans) | 48 bytes (0x30) | **40 bytes** | Vector3(12) + Quat(16) + Vector3(12) |
+| `int32` / `uint32` / `float` | 4 bytes | 4 bytes | Single Serialize() call |
+| `Vector3` | 16 bytes (0x10) | 12 bytes | 3 × Serialize(float), NO padding |
+| `Vector4` | 16 bytes | 16 bytes | 4 × Serialize(float) |
+| `Quat` | 16 bytes (0x10) | 16 bytes | 4 × Serialize(float) |
+| `SQT` (Scale+Quat+Trans) | 48 bytes (0x30) | 40 bytes | Vector3(12) + Quat(16) + Vector3(12) |
 
-This distinction between in-memory and serialized sizes is **critical for parsing**.
+This distinction between in-memory and serialized sizes is critical for parsing.
 The sizeof() debug string confirms memory sizes (Vector3=0x10, Quat=0x10, SQT=0x30),
 but the BinaryStream serialization functions write FEWER bytes.
 
@@ -1313,7 +1313,7 @@ AB 4B 54 58 20 31 31 BB 0D 0A 1A 0A  →  KTX1 format
 01 02 03 04                            →  Little-endian
 ```
 
-Files are **KTX1** (not KTX2) containing **ETC2** compressed texture data
+Files are KTX1 (not KTX2) containing ETC2 compressed texture data
 (pre-transcoded for Android). For offline decoding:
 - Use `PVRTexToolCLI -d output.png -i input.ktx` (Imagination PVRTexTool)
 - Or `etcpack` / `etctool` for ETC2 decompression
@@ -1450,12 +1450,12 @@ Level terrain/geometry is stored in `BstBaked.meshes` files, one per level. Writ
 [12 bytes]    Vector3: global AABB max
 ```
 
-Total header: **0x8C (140) bytes**, read by `ResourceManager::ReadFileSegment`.
+Total header: 0x8C (140) bytes, read by `ResourceManager::ReadFileSegment`.
 
 ### TOC Format (100 bytes)
 
-Supports up to **8 sections**. First byte = entryCount.
-Each TOC entry is **12 bytes**:
+Supports up to 8 sections. First byte = entryCount.
+Each TOC entry is 12 bytes:
 
 | Offset | Size | Type | Field |
 |--------|------|------|-------|
@@ -1468,8 +1468,8 @@ Entries containing `"LOD"` → geometry sections. Entries containing `"VOL"` →
 
 ### Compression
 
-Each LOD section is **independently LZ4-compressed**.
-Max decompressed size per LOD: **0xC00000 (12 MB)**.
+Each LOD section is independently LZ4-compressed.
+Max decompressed size per LOD: 0xC00000 (12 MB).
 
 ### LOD Section Data (decompressed, sequential)
 
@@ -1492,11 +1492,11 @@ Per MeshBake (0x30 = 48 bytes in memory):
     [N bytes] auxData: auxByteCount bytes
 ```
 
-**The 12-byte per-vertex bake data is `LightVertexData` (baked lighting), NOT positions.**
+The 12-byte per-vertex bake data is `LightVertexData` (baked lighting), NOT positions.
 Actual positions come from the referenced `.mesh` resource's `MeshPos` buffer (stride 0x10).
 The bake data encodes per-vertex baked light color/direction/intensity (see §26).
 
-**Vertex remap:** The referenced `.mesh` file contains a vertex remap table at
+Vertex remap: The referenced `.mesh` file contains a vertex remap table at
 `MeshLod+0x108` (stored as `vertexCount × uint16` or `uint32`, only present when
 `MeshLod+0x84 > 0`). The bake assembly code in `PackBeamoLod` uses this remap to
 scatter bake lighting onto mesh vertices:
@@ -1550,15 +1550,15 @@ Per TerrainMesh (0xD0 bytes in memory) — EXACT stream read order from LevelDat
       If tessIndexU32Count != 0: indices reconstructed, no read.
 ```
 
-**CRITICAL: BinaryStream uses BitPacker.** Bools (#2, #3) are **1-bit reads**.
+CRITICAL: BinaryStream uses BitPacker. Bools (#2, #3) are 1-bit reads.
 After the two bools, remaining 6 bits of that byte are discarded (byte-align).
 All subsequent reads are byte-aligned.
 
-**Octree bins = tessellation groups:** `octreeBinCount` (+0x80) IS `tessGroupCount`.
+Octree bins = tessellation groups: `octreeBinCount` (+0x80) IS `tessGroupCount`.
 The 8-byte bin entries at +0x88 ARE the `tessGroupData` the reconstruction algorithm
 uses. Each entry = `{uint32 triangleCount, uint32 unused}`.
 
-**Terrain vertex format = 36 bytes (0x24)** — from `TerrainBarn::FinalizeTerrainBatch`,
+Terrain vertex format = 36 bytes (0x24) — from `TerrainBarn::FinalizeTerrainBatch`,
 VertexData named `"BaseTerrain"`. Split into 2 GPU buffers (position + attributes):
 
 ```
@@ -1572,19 +1572,19 @@ Offset  Size  GPU Format        Semantic    Shader Attrib   Description
 0x20    4     unorm8×4 (0x1C)   TexCoord1   a_light2        (NormalX, NormalY, NormalZ, AmbientWeight)
 ```
 
-**From shader .ref files:** The 5 attribute channels are baked lighting data
+From shader .ref files: The 5 attribute channels are baked lighting data
 (a_light0/1/2) and material shader parameters (a_material0/1). The shader attribute
 names come from `GrassSh.vulkan.ref` / `SandSh.vulkan.ref` / `RockFaceSh.vulkan.ref`
 string tables, validated against hex-dumped CandleSpace vertex data and SPIR-V analysis.
 
-**a_material0 (Custom0, offset 0x10):** Per-vertex material params.
+a_material0 (Custom0, offset 0x10): Per-vertex material params.
   byte[0] = material enum (e.g. 0x30=Grass, 0x10=Cliff, 0x1C=CliffWet)
   byte[1] = secondary material enum (for blending, e.g. 0x30 on some verts)
   byte[2..3] = typically 1 (unused/padding)
 
-**a_material1 (Custom1, offset 0x14):** More material params. Often (255, 0, 0, 0) or similar.
+a_material1 (Custom1, offset 0x14): More material params. Often (255, 0, 0, 0) or similar.
 
-**a_light0 (Color, offset 0x18):** RGBD HDR baked light color.
+a_light0 (Color, offset 0x18): RGBD HDR baked light color.
 Decode per `Color::FromRGBD` (line 1449719 of 0.11.0 decompile):
 ```
 r_n = R_byte / 255.0;  g_n = G_byte / 255.0;  b_n = B_byte / 255.0
@@ -1597,14 +1597,14 @@ Channels are stored in gamma-2.0 space — the squaring converts to linear.
 The reverse (`Color::AsRGBD`, line 1449675) does `byte = sqrt(ch / max_component) * 255`.
 Typical values: R≈G≈B (neutral white light), D=255 (dim) to D=128 (bright HDR).
 
-**a_light1 (TexCoord0/UV0, offset 0x1C):** AO at [0], Shadow at [1],
+a_light1 (TexCoord0/UV0, offset 0x1C): AO at [0], Shadow at [1],
 LightExponent at [2], LightMantissa at [3]. AO decode: `ao = byte / 255.0`.
 Used for ambient/dynamic modulation, NOT the primary baked color.
 
-**a_light2 (TexCoord1/UV1, offset 0x20):** Baked light normal XYZ at [0..2],
+a_light2 (TexCoord1/UV1, offset 0x20): Baked light normal XYZ at [0..2],
 AmbientWeight at [3]. Normal decode: `n = byte/255*2-1`.
 
-**a_material0 / a_material1:** Material matching system. `a_material0` holds up to 4
+a_material0 / a_material1: Material matching system. `a_material0` holds up to 4
 material enum IDs per vertex; `a_material1` holds corresponding blend weights. The
 shader uses `equal(a_material0 * 256, u_materialId)` to select the active blend weight.
 See §29–30 for full shader decompilation.
@@ -1612,20 +1612,20 @@ See §29–30 for full shader decompilation.
 GPU format codes: `0x18` = signed normalized byte4, `0x1C` = unsigned normalized byte4.
 Normal at 0x0C is copied byte-by-byte (int8 components).
 
-**Attribute decoding: plain `byte / 255.0` (standard unorm8).** No AABB-based
+Attribute decoding: plain `byte / 255.0` (standard unorm8). No AABB-based
 dequantization like regular `.mesh` compressed UVs. The attribute copy loop in
 `TerrainBarn::FinalizeTerrainBatch` copies bytes verbatim to the GPU buffer — the
 hardware performs `float = byte / 255.0`. The a_material0/a_material1 channels are
 consumed by the terrain shader for procedural texture mapping; they are NOT
 traditional UV coordinates.
 
-**Tessellation index reconstruction algorithm** (when `tessIndexU32Count > 0`):
+Tessellation index reconstruction algorithm (when `tessIndexU32Count > 0`):
 
 The `tessTriangleEdgeTable` has exactly `indexCount` entries. Each uint16 encodes:
 - Bits [15:1] = lookup index into `tessIndexU32Table` (relative to current group base)
 - Bit [0] = component select (0 = low uint16 of packed pair, 1 = high uint16)
 
-Each `tessIndexU32Table` entry stores **two uint16 vertex indices** packed into one uint32.
+Each `tessIndexU32Table` entry stores two uint16 vertex indices packed into one uint32.
 
 ```python
 def reconstruct_terrain_indices(tess_group_data, tess_tri_edge_table,
@@ -1706,7 +1706,7 @@ Per SkirtData (0x20 = 32 bytes in memory):
   [N bytes]   indexData: indexCount × 2 bytes (uint16)
 ```
 
-**Skirt vertex format = 40 bytes (0x28)** — from `SkirtBarn::SetSkirtData`,
+Skirt vertex format = 40 bytes (0x28) — from `SkirtBarn::SetSkirtData`,
 VertexData named `"ObjectSkirt"`. First 36 bytes identical to terrain vertex:
 
 ```
@@ -1777,7 +1777,7 @@ Validated by assertions: `magic == 0x4C434754`, `fileSize == actual read size`.
 [POD Data Section   @ podDataOffset ... fileSize]
 ```
 
-**No compression.** The entire file is read into a 4MB scratch buffer.
+No compression. The entire file is read into a 4MB scratch buffer.
 
 ### Class Table (`LoClass`, 12 bytes each)
 
@@ -1820,11 +1820,11 @@ For each of `numObjects` objects:
               - Array (type 3): allocator + sub-elements
 ```
 
-**Transforms** are stored as POD member variables. A `LevelMesh` object has a
+Transforms are stored as POD member variables. A `LevelMesh` object has a
 `"transform"` field that is a `Matrix4` (64 bytes, 4×4 float row-major) representing
 the full world transform. Mesh references are `"meshName"` strings.
 
-**Array members (type 3):** The binary format is `[uint32 count]` (4 bytes) in the
+Array members (type 3): The binary format is `[uint32 count]` (4 bytes) in the
 POD data section. The count is passed to the class's `ArrayAllocator` function which
 reserves space in the object. Array element objects are loaded as separate top-level
 objects in the TGCL object list, with pointer resolution happening post-load via the
@@ -1860,12 +1860,12 @@ Resolves object pointer cross-references (parent-child, collision refs, etc.).
 
 Standalone animation packs are loaded from `Data/Meshes/Bin/<name>.animpack`.
 
-**The binary format is identical to the embedded AnimPackData in `.mesh` files.**
+The binary format is identical to the embedded AnimPackData in `.mesh` files.
 Both code paths call `AnimPackData::LoadFromBuffer` with the same stream format.
 
 The only difference:
-- **Standalone (`.animpack`)**: `AnimationPackType = 0`, stored in `AnimationPack` resource
-- **Embedded (in `.mesh`)**: `AnimationPackType = 1`, stored in `MeshData`
+- Standalone (`.animpack`): `AnimationPackType = 0`, stored in `AnimationPack` resource
+- Embedded (in `.mesh`): `AnimationPackType = 1`, stored in `MeshData`
 
 The type value (stored at `AnimPackData+0x40`) may affect runtime binding behavior
 but does not change the binary serialization.
@@ -1944,7 +1944,7 @@ Per animation file (fileCount entries):
     [4 bytes] float: distance
 ```
 
-**Purpose:** Maps animation file names to clip metadata (speed, looping, blend
+Purpose: Maps animation file names to clip metadata (speed, looping, blend
 settings, sound/particle triggers). Runtime calls `FindAnimationFile()` and
 `FindAnimation()` for name-based lookup, `GetMetaData()` for playback parameters.
 
@@ -1954,11 +1954,11 @@ settings, sound/particle triggers). Runtime calls `FindAnimationFile()` and
 
 ### sharedSkeleton (Mesh+0xAD)
 
-A **build-time concept**, not a runtime pointer indirection. When `sharedSkeleton=true`:
+A build-time concept, not a runtime pointer indirection. When `sharedSkeleton=true`:
 
 1. The mesh `.mesh` file still contains its own full AnimPackData (skeleton + bone weights)
 2. The same skeleton data is baked into both the source and shared mesh at build time
-3. At runtime, `sharedSkeleton` only affects **load ordering**: the mesh defers its
+3. At runtime, `sharedSkeleton` only affects load ordering: the mesh defers its
    file load until a dependency flag is set, ensuring the source skeleton mesh is
    loaded first
 
@@ -1972,7 +1972,7 @@ When `stripGeometry=true`, the mesh binary is baked with no renderable geometry
 - AnimPackData (skeleton + animations) if `stripAnimation` is false
 - Bone names, parent indices, inverse bind matrices, rest poses
 
-This produces a **skeleton-only proxy** used for:
+This produces a skeleton-only proxy used for:
 - Driving `AnimationInstance` bones for IK and attachments
 - Animation playback without GPU rendering
 - Shared animation rigs where only one mesh needs visible geometry
@@ -2019,7 +2019,7 @@ Two serialization modes for strings:
 ### `BinaryStream::Serialize(std::string*)` — Length-prefixed
 
 Used by `AnimationList::Serialize` and other dynamic-length string fields.
-Writes a **4-byte uint32 length prefix** followed by the raw character data:
+Writes a 4-byte uint32 length prefix followed by the raw character data:
 
 ```
 [4 bytes]   uint32: string length (excluding null terminator)
@@ -2042,7 +2042,7 @@ Common sizes: `0x40` (64B, bone names), `0x20` (32B, player names),
 
 ## 24. Morph Target Format
 
-Morph targets store **full absolute vertex data**, not deltas. Each morph target
+Morph targets store full absolute vertex data, not deltas. Each morph target
 is a complete `Model` / `MeshLod` with its own vertex buffers:
 
 ```
@@ -2057,9 +2057,9 @@ morphTarget->meshData->lods[lodIndex]  (offset 0x48 + lodIndex * 0x130)
   normals at MeshLod+0xB8    (MeshNorm[], stride 0x04)
 ```
 
-**Blending formula:** `result = current * (1 - weight) + morphTarget * weight`
+Blending formula: `result = current * (1 - weight) + morphTarget * weight`
 
-**Constraint:** The morph target must have the same vertex count as the base mesh
+Constraint: The morph target must have the same vertex count as the base mesh
 (assertion: `m_morphTarget->GetLod()->vertCount == vertCount`).
 
 In the `.mesh` file, morph target data is a separate morph index buffer
@@ -2089,7 +2089,7 @@ Bit 0:     Direction flag (0 = same order as Edge, 1 = reversed)
 Bits 1-15: Index into the unique Edge array
 ```
 
-Max unique edges: **32768** (0x8000). One EdgeIndex per index buffer entry
+Max unique edges: 32768 (0x8000). One EdgeIndex per index buffer entry
 (i.e., per triangle vertex reference).
 
 ### ComputeEdges pipeline
@@ -2128,9 +2128,9 @@ Offset  Size  Type    Field               Decode formula
 ```
 
 RGBD = Red, Green, Blue, Denominator — a compact HDR color encoding.
-**RGBD decode** (`Color::FromRGBD`, line 1449719):
+RGBD decode (`Color::FromRGBD`, line 1449719):
   `ch_linear = (ch_byte / 255.0)² / (D_byte / 255.0)` — gamma-2.0 encoding + D divisor.
-**RGBD encode** (`Color::AsRGBD`, line 1449675):
+RGBD encode (`Color::AsRGBD`, line 1449675):
   `D_denom = max(R, G, B, 1.0)`, `ch_byte = sqrt(ch / D_denom) * 255`, `D_byte = 255 / D_denom`.
 Light intensity uses split mantissa+exponent for HDR range.
 Used by `CollisionGeoInstance::GetVertLights`, `Lerp(MeshLight)`, and
@@ -2142,11 +2142,11 @@ Used by `CollisionGeoInstance::GetVertLights`, `Lerp(MeshLight)`, and
 
 ### Two Material Systems
 
-Sky uses **two separate material systems** for level geometry:
+Sky uses two separate material systems for level geometry:
 
-**System A — `MaterialDefBarn` (hardcoded enum, physics + visual):**
+System A — `MaterialDefBarn` (hardcoded enum, physics + visual):
 A hardcoded C++ enum of physical/visual surface types registered in
-`MaterialDefBarn::RegisterDefs`. Each entry is **0xA0 bytes** containing:
+`MaterialDefBarn::RegisterDefs`. Each entry is 0xA0 bytes containing:
 
 ```
 Offset  Type          Field                      Example
@@ -2168,7 +2168,7 @@ Offset  Type          Field                      Example
 +0x97   uint8         material enum byte         e.g., 0x10 for Cliff
 ```
 
-Material enum values and their **default** base colors (HSV hue in radians),
+Material enum values and their default base colors (HSV hue in radians),
 extracted from `RegisterDefs` in `libBootloader-Live-0.11.0-155436.so.c` line 946244:
 
 ```
@@ -2211,11 +2211,11 @@ Derived materials are created via `CopyDefFrom(target, source)` and inherit text
 - Sand (0x20) → SandRain, Snow, SandBright, SandAlt
 - Grass (0x30) → GrassRain, GrassDark, GrassAlt
 
-**Per-level color overrides** are applied by matching the level name string against
+Per-level color overrides are applied by matching the level name string against
 hardcoded names (`"Night2"`, `"Dawn"`, `"RainMid"`, `"Prairie_ButterflyFields"`, etc.).
-CandleSpace has **no** level-specific overrides (only `"CandleSpaceEnd"` does).
+CandleSpace has no level-specific overrides (only `"CandleSpaceEnd"` does).
 
-**System B — `LevelMaterial` (per-level, stored in TGCL):**
+System B — `LevelMaterial` (per-level, stored in TGCL):
 Named visual material definitions with these fields (from meta registration):
 
 | Field | Type | Default | Notes |
@@ -2269,9 +2269,9 @@ Both resolve through `MaterialDefBarn::GetDef(enum)` at render time.
 
 ### For a Blender Level Decoder — Practical Texture Strategy
 
-Level textures are **hardcoded in `MaterialDefBarn::RegisterDefs`**, not in data files.
+Level textures are hardcoded in `MaterialDefBarn::RegisterDefs`, not in data files.
 
-**Phase 1 (implemented in `blender_import_level.py`):** Baked light + material color.
+Phase 1 (implemented in `blender_import_level.py`): Baked light + material color.
 1. Read per-vertex material enum from `custom0[0]` (a_material0 byte 0)
 2. Look up material base color RGB from RegisterDefs HSV table
 3. Decode RGBD from `color` field (a_light0) using `Color::FromRGBD`:
@@ -2283,7 +2283,7 @@ Level textures are **hardcoded in `MaterialDefBarn::RegisterDefs`**, not in data
 7. Use Emission shader to prevent Blender viewport double-lighting
 8. Blender's Filmic/AgX view transform handles display tonemapping
 
-**Phase 2 (shader-driven textures):**
+Phase 2 (shader-driven textures):
 All terrain shaders (Grass/Sand/RockFace/Cloud) have been decompiled via spirv-cross
 and saved in `scratchpad/shaders/`. Material matching uses `a_material0` (up to 4
 material IDs per vertex) and `a_material1` (blend weights), with `equal()` to select
@@ -2335,7 +2335,7 @@ but mapped below via the `.ref` reflection files.
 
 #### GrassSh Vertex Shader (GrassSh.vulkan.vs.spv)
 
-**Inputs (vertex attributes):**
+Inputs (vertex attributes):
 | Location | GLSL var | .ref name    | TerrainVertex field | Type  |
 |----------|----------|-------------|---------------------|-------|
 | 0        | `_120`   | a_position   | position            | vec3  |
@@ -2346,7 +2346,7 @@ but mapped below via the `.ref` reflection files.
 | 5        | `_213`   | a_material0  | custom0 (raw bytes) | vec4  |
 | 6        | `_235`   | a_material1  | custom1 (raw bytes) | vec4  |
 
-**Per-object uniforms (binding 0):**
+Per-object uniforms (binding 0):
 | Field | .ref name        | Type  |
 |-------|-----------------|-------|
 | _m0   | u_model          | mat4  |
@@ -2356,9 +2356,9 @@ but mapped below via the `.ref` reflection files.
 | _m4   | u_matUvScale     | float |
 | _m5   | u_matMetalness   | float |
 
-**Key computations:**
+Key computations:
 
-1. **RGBD decode + environment tint** (output → v_light0, location 4):
+1. RGBD decode + environment tint (output → v_light0, location 4):
 ```glsl
 v_light0.rgb = (a_light0.rgb² / a_light0.w) * mix(u_averageSkyColor, u_sunColor, a_light1.x)
 v_light0.w   = a_light1.w * exp2(255 * a_light1.z - 128)   // HDR mantissa × 2^exponent
@@ -2366,18 +2366,18 @@ v_light0.w   = a_light1.w * exp2(255 * a_light1.z - 128)   // HDR mantissa × 2^
    - `a_light1.x` = AO: 0 → shadow (sky-tinted), 1 → lit (sun-tinted)
    - `u_averageSkyColor` = `_m45`, `u_sunColor` = `_m41` in PerFrameUniforms
 
-2. **Shadow passthrough** (output → v_light1, location 5):
+2. Shadow passthrough (output → v_light1, location 5):
 ```glsl
 v_light1.x = a_light1.y²    // shadow term, squared for contrast
 ```
 
-3. **Light normal decode** (output → v_light2, location 6):
+3. Light normal decode (output → v_light2, location 6):
 ```glsl
 v_light2.xyz = a_light2.xyz * 2.007874 - 1.007874   // [0,1] → [-1,1]
 v_light2.w   = a_light2.w                             // ambient weight
 ```
 
-4. **Material matching** (output → v_specColorInvMetal, location 2):
+4. Material matching (output → v_specColorInvMetal, location 2):
 ```glsl
 mask = vec4(equal(ivec4(a_material0 * 256), ivec4(u_materialId)))
 v_specColorInvMetal = vec4(u_matColor, dot(mask, a_material1))
@@ -2386,7 +2386,7 @@ v_specColorInvMetal = vec4(u_matColor, dot(mask, a_material1))
    current draw-pass `u_materialId`, the corresponding `a_material1` channel
    gives the blend weight. This enables multi-material terrain blending.
 
-5. **PBR F0** (output → v_color, location 3):
+5. PBR F0 (output → v_color, location 3):
 ```glsl
 v_color.xyz = mix(matColor * 0.015 + 0.035, matColor, metalness)   // Fresnel F0
 v_color.w   = 1.0 - metalness
@@ -2394,7 +2394,7 @@ v_color.w   = 1.0 - metalness
 
 #### GrassSh Fragment Shader (GrassSh.vulkan.fs.spv)
 
-**Texture inputs:**
+Texture inputs:
 | Binding | .ref name        | Purpose                          |
 |---------|-----------------|----------------------------------|
 | 3       | u_lightCSTex     | Clustered light list (per-tile)  |
@@ -2403,17 +2403,17 @@ v_color.w   = 1.0 - metalness
 | 6       | u_grassNorm2Tex  | Grass normal map 2               |
 | 7       | u_grassMaskTex   | Grass mask / displacement        |
 
-**Key computations:**
+Key computations:
 
-1. **Grass displacement**: Samples `u_grassMaskTex` to get mask height and
+1. Grass displacement: Samples `u_grassMaskTex` to get mask height and
    `u_grassNorm1Tex`/`u_grassNorm2Tex` for grass blade normals. Uses world-space
    XZ coordinates × `u_matUvScale` for tri-planar UV. Wind scroll from
    `u_windScroll0/1/2` animates the normals.
 
-2. **Clustered point lights**: Reads per-tile light lists from `u_lightCSTex`,
+2. Clustered point lights: Reads per-tile light lists from `u_lightCSTex`,
    accumulates diffuse + shadow contributions.
 
-3. **PBR direct lighting**:
+3. PBR direct lighting:
 ```glsl
 NdotL   = max(0, dot(displaced_normal, -u_sunDir))
 diffuse = matColor * (1 - metalness) * NdotL
@@ -2421,18 +2421,18 @@ spec    = GGX(roughness, F0=v_color.xyz)    // GGX/Smith + Schlick Fresnel
 direct  = u_sunColor * shadow * (diffuse + spec)
 ```
 
-4. **Ambient / baked lighting**:
+4. Ambient / baked lighting:
 ```glsl
 ambient_albedo = matColor * ((1 - metalness) + env_reflection)
 ambient = baked_light * ambient_albedo * min(shadow * 0.25 + 0.75, 1.0)
 ```
    Where `baked_light = v_light0.rgb + someColor * v_light0.w`
 
-5. **Output**: `o_fragColor0 = vec4(direct + ambient, depth_for_fog)`
+5. Output: `o_fragColor0 = vec4(direct + ambient, depth_for_fog)`
 
 #### SandSh Fragment Shader (SandSh.vulkan.fs.spv)
 
-**Texture inputs:**
+Texture inputs:
 | Binding | .ref name      | Purpose                              |
 |---------|---------------|--------------------------------------|
 | 0       | u_waterSim     | Water simulation (sand ripple/wet)   |
@@ -2440,19 +2440,19 @@ ambient = baked_light * ambient_albedo * min(shadow * 0.25 + 0.75, 1.0)
 | 4       | u_lightPRTex   | Point light data                     |
 | 5       | u_normalTex    | Sand surface normal map              |
 
-**Key differences from GrassSh:**
+Key differences from GrassSh:
 - Uses `u_waterSim` texture for dynamic water effects: samples height at position
   and adjacent texels, computes surface gradient, deforms the sand surface normal.
 - Sand ripples are modulated by `v_norm.y²` (flatter surfaces get more water effect).
 - Normal perturbation from `u_normalTex` sampled at world XZ coordinates.
-- Has **two specular lobes**: a tight GGX (roughness=0.25²) and a wider one
+- Has two specular lobes: a tight GGX (roughness=0.25²) and a wider one
   (roughness varies with distance, 0.3-0.65), giving sand its characteristic sheen.
 - Final color: `sunColor * shadow * NdotL * (1 + tightSpec)` + `bakedLight * wideSpec`
   multiplied by matColor.
 
 #### RockFaceSh Fragment Shader (RockFaceSh.vulkan.fs.spv)
 
-**Texture inputs:**
+Texture inputs:
 | Binding | .ref name         | Purpose                        |
 |---------|------------------|--------------------------------|
 | 3       | u_probeCube        | Cubemap reflection probe       |
@@ -2461,23 +2461,23 @@ ambient = baked_light * ambient_albedo * min(shadow * 0.25 + 0.75, 1.0)
 | 6       | u_sideGeoTexture   | Rock side face texture (RGBA)  |
 | 7       | u_topGeoTexture    | Rock top face texture (RGBA)   |
 
-**Key differences from GrassSh:**
-- **Tri-planar texture mapping**: Normal components raised to 4th power for blend weights:
+Key differences from GrassSh:
+- Tri-planar texture mapping: Normal components raised to 4th power for blend weights:
 ```glsl
 weights = (normal⁴) / sum(normal⁴)
 texColor = topTex(uvXY) * wX + sideTex(uvXZ) * wY + topTex(uvXY2) * wZ
 ```
   UVs are `worldPos * u_matUvScale` with axis-dependent sign flips.
-- **Normal map from texture**: `.xy` channels decoded from [0,1] → [-1,1],
+- Normal map from texture: `.xy` channels decoded from [0,1] → [-1,1],
   `.z` reconstructed, transformed to world space via tangent frame.
-- **Roughness from texture**: `roughness = max(0.03, texture.z * u_matRoughness)` —
+- Roughness from texture: `roughness = max(0.03, texture.z * u_matRoughness)` —
   the blue channel of the geo texture modulates roughness per-pixel.
-- **Cubemap reflections**: Samples `u_probeCube` at normal (ambient) and
+- Cubemap reflections: Samples `u_probeCube` at normal (ambient) and
   reflect(-eye, normal) (specular). Pre-divided in vertex shader for efficiency:
   `v_probeAmb = 1/cubemap(normal, mip=5)`, used as `ambient * matColor / v_probeAmb`.
-- **Full PBR**: Two GGX lobes (direct sun + environment), plus environment BRDF
+- Full PBR: Two GGX lobes (direct sun + environment), plus environment BRDF
   approximation for indirect specular.
-- **Subsurface scattering term**: `matColor * 5 * pow(max(0, -VdotL), 8) * max(0, -NdotL)`
+- Subsurface scattering term: `matColor * 5 * pow(max(0, -VdotL), 8) * max(0, -NdotL)`
   adds a back-lighting glow for thin rock edges.
 
 #### RockFaceSh Vertex Shader — Tri-planar UV computation
@@ -2491,7 +2491,7 @@ v_uvZ      = worldPos_scaled.xy * vec2(sign(normal.z), -1)    // Z-facing
 
 #### CloudSh — Fully vertex-lit (no textures)
 
-**Vertex shader** computes the **entire** diffuse lighting in-shader:
+Vertex shader computes the entire diffuse lighting in-shader:
 ```glsl
 lightColor = RGBD_decode(a_light0) * mix(u_averageSkyColor, u_sunColor, AO)
 lightColor += u_pointLightColor * (mantissa * 2^exponent)    // HDR term from a_light1.zw
@@ -2499,7 +2499,7 @@ shadow = a_light1.y²
 halfLambert = shadow * (0.5 + 0.5 * mix(NdotL, 1.0, max(0, -VdotL)))
 v_diffuse = matColor * (sunColor * halfLambert + lightColor)
 ```
-**Fragment shader** is trivial: `o_fragColor0 = vec4(v_diffuse.xyz, depth)`
+Fragment shader is trivial: `o_fragColor0 = vec4(v_diffuse.xyz, depth)`
 
 Uses same `equal(a_material0 * 256, u_materialId)` material matching.
 Offsets position along normal for cloud puffiness.
@@ -2508,7 +2508,7 @@ Offsets position along normal for cloud puffiness.
 
 Full-screen post-processing pass applied after all scene rendering.
 
-**Texture inputs:**
+Texture inputs:
 | Binding | .ref name      | Purpose                 |
 |---------|---------------|-------------------------|
 | 0       | u_lensLUT      | Lens distortion lookup  |
@@ -2516,39 +2516,39 @@ Full-screen post-processing pass applied after all scene rendering.
 | 4       | u_texMotionBlur| Motion blur buffer      |
 | 5       | u_bloomTex     | Bloom buffer            |
 
-**Key computations:**
+Key computations:
 
-1. **Lens distortion**: UV warped via LUT based on distance from center.
+1. Lens distortion: UV warped via LUT based on distance from center.
 
-2. **Inverse scene decode**: Scene buffer stored as `1/(1+hdr)` (inverse Reinhard),
+2. Inverse scene decode: Scene buffer stored as `1/(1+hdr)` (inverse Reinhard),
    decoded back to linear HDR:
 ```glsl
 hdr = (1.0 / max(0.0001, scene_color)) - 1.0
 ```
 
-3. **Bloom + exposure**:
+3. Bloom + exposure:
 ```glsl
 combined = mix(hdr, bloom.rgb, bloom.a) * exposure   // exposure = u_postParams1.w
 combined += motion_blur_contribution
 ```
 
-4. **Reinhard tonemapping** (constant = 0.25, squared for contrast):
+4. Reinhard tonemapping (constant = 0.25, squared for contrast):
 ```glsl
 mapped = combined / (combined + 0.25)
 mapped *= mapped
 ```
 
-5. **Vignette**: Elliptical mask from `u_postParams2.x/y/z`.
+5. Vignette: Elliptical mask from `u_postParams2.x/y/z`.
 
-6. **Dithering**: Adds ±1/256 noise to break banding.
+6. Dithering: Adds ±1/256 noise to break banding.
 
-7. **Gamma**: `pow(result, u_postParams2.w)` — typically 1/2.2 for sRGB.
+7. Gamma: `pow(result, u_postParams2.w)` — typically 1/2.2 for sRGB.
 
-8. **Channel swap**: Final `RGB → BGR` (matches Vulkan swapchain format).
+8. Channel swap: Final `RGB → BGR` (matches Vulkan swapchain format).
 
 ### Blender Approximation Strategy
 
-The importer reproduces the **ambient/baked** lighting term only (no dynamic sun/specular):
+The importer reproduces the ambient/baked lighting term only (no dynamic sun/specular):
 ```
 result = matColor × RGBD_decode(a_light0) × mix(skyColor, sunColor, AO)
 ```
@@ -2556,7 +2556,7 @@ result = matColor × RGBD_decode(a_light0) × mix(skyColor, sunColor, AO)
 - Uses Emission shader to avoid Blender viewport double-lighting
 - Blender's view transform (Filmic/AgX) handles display tonemapping
 
-**NOT reproduced** (requires textures / dynamic state):
+NOT reproduced (requires textures / dynamic state):
 - Grass/sand/cliff texture detail from `.ktx` files
 - PBR specular highlights (GGX)
 - Dynamic sun contribution (depends on u_sunDir)
@@ -2569,7 +2569,7 @@ result = matColor × RGBD_decode(a_light0) × mix(skyColor, sunColor, AO)
 
 ## 28. BstGuid and Level Object Identification
 
-A `BstGuid` is a **uint32** that uniquely identifies an object within a level's data.
+A `BstGuid` is a uint32 that uniquely identifies an object within a level's data.
 Used for:
 - Cross-referencing objects across barns (e.g., `LevelLinkBarn::GetLevelLinkFromBstGuid`)
 - Associating baked mesh data with placed objects
@@ -2590,7 +2590,7 @@ Reflection names extracted from `.ref` files stored as `*.ref.txt`.
 
 ### Shader Categories
 
-**Terrain (level map geometry):**
+Terrain (level map geometry):
 | Base         | Variants                                           |
 |--------------|---------------------------------------------------|
 | GrassSh      | Alpha, AlphaSkirt, Mesh, MeshAlpha                |
@@ -2601,7 +2601,7 @@ Reflection names extracted from `.ref` files stored as `*.ref.txt`.
 | SandRainSh   | Alpha, AlphaSkirt                                 |
 | RockFaceRainSh| Alpha, AlphaSkirt                                |
 
-**Object/Mesh shaders:**
+Object/Mesh shaders:
 | Shader        | Purpose                                          |
 |---------------|--------------------------------------------------|
 | Mesh          | Basic mesh, no spherical harmonics               |
@@ -2620,33 +2620,33 @@ Reflection names extracted from `.ref` files stored as `*.ref.txt`.
 | DarkStoneNoBake | Dark stone without baked lighting              |
 | DarkstoneRain | Rain variant                                     |
 
-**Character/Spirit:**
+Character/Spirit:
 Avatar, AvatarCham, AvatarChamRef, AvatarDiamond, AvatarHair, AvatarHairRef,
 AvatarRef, Spirit, SpiritBody, SpiritBodyAlpha, SpiritBodyRef, SpiritCore,
 SpiritFrozen, SpiritMemoryMesh, SpiritParticle, SpiritProps, Creature, CreatureSl
 
-**Environment:**
+Environment:
 Ocean, OceanDark, OceanMesh, OceanMeshWet, OceanDarkMesh, OceanDarkMeshWet,
 OceanOrbit, SkyboxCloud, Sun, CloudCore, CloudFluffy (+ Coarse, SuperCoarse,
 Undulate variants), CloudCard, CloudQuad (Diamond, Fast, Fluffy, SoftFast)
 
-**VFX/Particles:**
+VFX/Particles:
 Candle, CandleAura, Flame, Flower, FlowerShadow, Beacon, Shout, Trail,
 LightShroom, HeartAura, RepulsionField, Constellation, BirdFlock, Bub,
 Tail, TailMotion, Sprite, ColorSprite, GlowSprite, MoteAnim, MoteMotion,
 LensFlareDot, LensFlareStar, LensFlareSunDog, RainDrop, PuddleDrop
 
-**Post-processing:**
+Post-processing:
 Tonemap, TonemapBW, TonemapMovie, TonemapScreenshot, BloomDownOld, BloomUpOld,
 LumFeedback, MotionBlur, MotionGen, MotionDilate, MotionDownsample,
 TemporalAa, Fxaa, FxaaDisabled, FogVolume, FogUpsample, FogUpsampleCheap,
 DepthDownsample, DepthDownsampleGather, DepthDownsampleQuarter, Resample
 
-**Lighting:**
+Lighting:
 DirectionalLighting, DirectionalLightingNoUv, DirectionalLightingRail,
 LitAlpha, LitAlphaColor, LitAlphaDual, LitAlphaFading, LitAlphaTest
 
-**UI/Debug:**
+UI/Debug:
 Unlit (+ many variants), Cham, ChamAlpha, ChamAlphaDepth, ChamAlphaDepthColor,
 ChamAlphaSdf, ChamShAlpha, DazzleCham, DazzleChamAlpha, DebugLine, DebugLineHud,
 DebugText, HudMask, TguiBox, Portal, PortalGeo, ProjectedCircleZone,
@@ -2749,11 +2749,11 @@ The engine renders terrain via multi-pass alpha compositing:
 ### Blender Implementation
 
 Since Blender can't easily replicate multi-pass alpha compositing, the importer uses:
-1. **Per-vertex `MatColor`**: stores the RegisterDefs base RGB for each vertex's `custom0[0]`
-2. **Per-vertex `FinalColor`**: stores `MatColor × BakedLight` (RGBD decode + sky/sun tint)
-3. **Per-face material assignment**: each triangle's material slot is determined by the
+1. Per-vertex `MatColor`: stores the RegisterDefs base RGB for each vertex's `custom0[0]`
+2. Per-vertex `FinalColor`: stores `MatColor × BakedLight` (RGBD decode + sky/sun tint)
+3. Per-face material assignment: each triangle's material slot is determined by the
    majority vote of its three vertices' material enums, mapped to shader family
-4. **Textured materials per shader family**:
+4. Textured materials per shader family:
    - `Sky_Terrain_Grass`: GrassMask.png as normal map, world-space XZ UVs
    - `Sky_Terrain_Rock_*`: tri-planar mapping with CliffSh/RockHeightCliffSh textures
    - `Sky_Terrain_Sand`: Noise3Ch.png as normal map, world-space XZ UVs
@@ -2768,8 +2768,8 @@ Since Blender can't easily replicate multi-pass alpha compositing, the importer 
 
 ### Texture Channel Usage
 
-**CRITICAL: None of the three terrain shaders derive diffuse/albedo color from
-textures.** Surface color comes entirely from the vertex/material color (location 2).
+CRITICAL: None of the three terrain shaders derive diffuse/albedo color from
+textures. Surface color comes entirely from the vertex/material color (location 2).
 
 | Shader | Texture .xy | .z | .w |
 |--------|-------------|-----|-----|
@@ -2830,11 +2830,11 @@ values (6-25×) that compensate when multiplied. The product gives visible brigh
 
 ### Blender Implementation
 
-1. **Sun light**: Direction from `sunAngleXZ`/`sunAngleY` (degrees), color from
+1. Sun light: Direction from `sunAngleXZ`/`sunAngleY` (degrees), color from
    `sunColor × sunInt × 200` (scaled for Blender visibility), energy from sunInt.
-2. **Fog**: Blender mist pass with `start = drawDist × 0.05`, `depth = drawDist × 0.5 × fogDensity`.
-3. **Compositor**: Bloom glare node (threshold=1.0, mix=bloomIntensity×5) + Filmic view transform.
-4. **Exposure**: Compositor exposure node when `exposure != 1.0`.
+2. Fog: Blender mist pass with `start = drawDist × 0.05`, `depth = drawDist × 0.5 × fogDensity`.
+3. Compositor: Bloom glare node (threshold=1.0, mix=bloomIntensity×5) + Filmic view transform.
+4. Exposure: Compositor exposure node when `exposure != 1.0`.
 
 ---
 
@@ -2852,10 +2852,10 @@ vec3 ambient = matColor * (grassAlpha + translucency);
 - At direct view (NdotV ≈ 1): translucency ≈ 0.036 → negligible
 - Creates the characteristic "grass glowing when backlit" look
 
-**GrassMask .z channel**: Used as blend mask for grass density (from shader),
+GrassMask .z channel: Used as blend mask for grass density (from shader),
 modulates the grass variant mixing. Blender: drives `Subsurface Weight` per-pixel.
 
-**Blender approx**: Principled BSDF with `Subsurface Weight = 0.4`,
+Blender approx: Principled BSDF with `Subsurface Weight = 0.4`,
 `Subsurface Radius = (0.3, 0.5, 0.1)`, modulated by GrassMask .z channel.
 
 ### SandSh — Dual GGX Sparkle (from SandSh.fs.glsl)
@@ -2880,9 +2880,9 @@ vec3 sheen = (NdotV + _838) / (dot(unnorm_normal, view) * 0.2 + 0.06);
 
 - Sharp sparkle from very low roughness (0.25) with high-frequency perturbed normal
 - Strong normal perturbation: `normalize(vertex_normal × 0.4 + tex_normal × 2.0)`
-- Sand **multiplies final color by matColor at the end** (line 279: `_871 *= matColor`)
+- Sand multiplies final color by matColor at the end (line 279: `_871 *= matColor`)
 
-**Blender approx**: Principled BSDF with `Roughness = 0.25`,
+Blender approx: Principled BSDF with `Roughness = 0.25`,
 `Specular IOR Level = 0.6`, `Coat Weight = 0.3, Coat Roughness = 0.5`,
 `Normal Map Strength = 1.5` (strong perturbation for sparkle).
 
@@ -2905,7 +2905,7 @@ rim /= 0.025 * log(2/0.025 + 1);
 
 Vertex push-back for volume: `pos -= normal * 4 * max(0.5, 1 - 0.0125 * dist²)`.
 
-**Blender approx**: Principled BSDF with `Roughness = 1.0`,
+Blender approx: Principled BSDF with `Roughness = 1.0`,
 `Transmission Weight = 0.3`, Emission from FinalColor vertex attribute.
 
 ---
@@ -2976,8 +2976,8 @@ This packs a float mantissa+exponent into two unorm8 values:
 | CloudSh (vertex) | Same, but in vertex shader |
 
 `u_averageProbeColor` is a runtime uniform from the nearest light probe
-(at offset +0x58f90 in the Ambience object). **Cannot be extracted from
-static level data.** Known gap in Blender reproduction.
+(at offset +0x58f90 in the Ambience object). Cannot be extracted from
+static level data. Known gap in Blender reproduction.
 
 For CandleSpace: would be warm orange/yellow from candle light probes.
 
@@ -3003,7 +3003,7 @@ sky_peak = max(avgSky.r, avgSky.g, avgSky.b, 0.0001)
 skyColor_blender = avgSky * (0.5 / sky_peak)  # normalized to ~0.5 peak
 ```
 
-This preserves the **color hue/ratio** from the level data while maintaining
+This preserves the color hue/ratio from the level data while maintaining
 visible brightness. Falls back to defaults `(1.1, 0.95, 0.75)` / `(0.45, 0.55, 0.75)`
 when TGCL is unavailable.
 
@@ -3032,9 +3032,9 @@ when TGCL is unavailable.
 
 ### Ocean Vertex Shader (`Ocean.vs.glsl`)
 
-- **Wave displacement**: sine-based vertical offset `sin(time + pos.x*freq) * amplitude`
-- **LOD fade**: amplitude → 0 between 10-25 unit camera distance
-- **3 UV sets** for ripple textures: computed from world pos + `u_windScroll0/1/2`
+- Wave displacement: sine-based vertical offset `sin(time + pos.x*freq) * amplitude`
+- LOD fade: amplitude → 0 between 10-25 unit camera distance
+- 3 UV sets for ripple textures: computed from world pos + `u_windScroll0/1/2`
 - `u_oceanOffset`: vec4(center.x, center.z, radius, unused) — dynamic wind tracking
 
 ### Ocean Fragment Shader (`Ocean.fs.glsl`)
@@ -3049,9 +3049,9 @@ Key textures:
 Rendering pipeline:
 1. Read scene depth + color for refraction
 2. Construct surface normal from `u_waterSimNorm` + `u_normalTex` ripples
-3. **Fresnel**: `mix(0.01, 0.6, (1 - NdotV)^7)` — strong reflection at grazing
-4. **Specular Fresnel**: `mix(0.04, 0.8, (1 - VdotH)^7)` — sun specular
-5. **Water body color**: hardcoded `vec3(0.01, 0.03, 0.06)` (dark blue-green)
+3. Fresnel: `mix(0.01, 0.6, (1 - NdotV)^7)` — strong reflection at grazing
+4. Specular Fresnel: `mix(0.04, 0.8, (1 - VdotH)^7)` — sun specular
+5. Water body color: hardcoded `vec3(0.01, 0.03, 0.06)` (dark blue-green)
 6. Chromatic absorption: R absorbed first through depth
 7. Cubemap reflection blended by Fresnel factor
 8. Caustics projected onto underwater geometry
@@ -3067,12 +3067,12 @@ Rendering pipeline:
 
 ### Ocean Enable Mechanism (from decompile)
 
-- `Ocean+0x700` is the **render enable flag**. Initialized to 0 in both
+- `Ocean+0x700` is the render enable flag. Initialized to 0 in both
   `Ocean::Initialize` and `Ocean::OnLevelLoad`.
 - `Ocean::BuildScene` gates on `(this[0x700] != 0) && kDisplayOcean`.
 - `SetOceanRender` is a TGCL event class with `Tool_AutoStartEvent` metadata
   and a `render` member (bool). When it auto-starts, it sets `Ocean+0x700`.
-- **CandleSpace has NO `Water` or `SetOceanRender` objects in its TGCL**.
+- CandleSpace has NO `Water` or `SetOceanRender` objects in its TGCL.
   The visible ocean likely comes from scene composition (parent level),
   Lua scripting, or terrain geometry that looks like water.
 - Importer provides `water_height_override` for levels lacking TGCL water data.
@@ -3084,8 +3084,8 @@ Rendering pipeline:
 | 0 | WorldEmpty | Ocean |
 | 1 | CandleSpace | Ocean |
 | 2 | Dawn, HubReveal, DawnCave, RetailDemo_Dawn | Ocean |
-| 6 | Dusk* levels | **OceanDark** |
-| 8 | Storm* levels | **OceanDark** |
+| 6 | Dusk* levels | OceanDark |
+| 8 | Storm* levels | OceanDark |
 
 ### Blender Implementation
 
