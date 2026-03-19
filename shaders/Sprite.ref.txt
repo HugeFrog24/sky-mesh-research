@@ -1,0 +1,15 @@
+a_color
+a_position
+a_uv0
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+name
+o_fragColor0
+o_fragColor1
+u_color
+u_texture
+v_colorVarying
+v_texUv
+x8@G

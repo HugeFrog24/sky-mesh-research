@@ -1,0 +1,11 @@
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+o_fragColor
+u_interest0
+u_interest1
+u_interest2
+u_interest3
+u_interestParams
+v_uv

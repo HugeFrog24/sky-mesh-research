@@ -1,0 +1,123 @@
+#version 460
+
+layout(binding = 2, std140) uniform _50_52
+{
+    vec4 _m0;
+    vec4 _m1;
+    vec4 _m2;
+    vec4 _m3;
+    vec4 _m4;
+    vec4 _m5;
+    mat4 _m6;
+    mat4 _m7;
+    mat4 _m8;
+    mat4 _m9;
+    mat4 _m10;
+    mat4 _m11;
+    vec4 _m12;
+    vec4 _m13;
+    vec4 _m14;
+    vec4 _m15;
+    vec3 _m16;
+    float _m17;
+    vec3 _m18;
+    float _m19;
+    float _m20;
+    float _m21;
+    float _m22;
+    float _m23;
+    float _m24;
+    float _m25;
+    float _m26;
+    vec3 _m27;
+    float _m28;
+    vec3 _m29;
+    float _m30;
+    vec2 _m31;
+    vec2 _m32;
+    vec3 _m33;
+    vec3 _m34;
+    vec3 _m35;
+    vec4 _m36;
+    vec2 _m37;
+    vec3 _m38;
+    float _m39;
+    vec4 _m40;
+    vec3 _m41;
+    float _m42;
+    vec3 _m43;
+    float _m44;
+    vec3 _m45;
+    float _m46;
+    vec3 _m47;
+    vec3 _m48;
+    vec3 _m49;
+    vec4 _m50;
+    vec4 _m51;
+    vec3 _m52;
+    vec4 _m53;
+    vec4 _m54;
+    vec4 _m55;
+    vec4 _m56;
+    vec3 _m57;
+    vec3 _m58;
+    vec3 _m59;
+    vec3 _m60;
+    vec4 _m61;
+    vec4 _m62;
+    vec4 _m63;
+    vec4 _m64;
+    vec4 _m65;
+    vec4 _m66;
+    vec3 _m67;
+    vec3 _m68;
+    vec4 _m69;
+    vec4 _m70;
+    vec4 _m71;
+    vec4 _m72;
+    vec3 _m73;
+    float _m74;
+    vec3 _m75;
+    float _m76;
+    vec3 _m77;
+    vec3 _m78;
+    vec3 _m79;
+    vec3 _m80;
+    vec3 _m81;
+    vec3 _m82;
+} _52;
+
+layout(binding = 0) uniform sampler2D _108;
+
+layout(location = 1) in vec2 _28;
+layout(location = 0) out vec4 _158;
+layout(location = 0) in vec4 _160;
+layout(location = 1) out vec4 _174;
+
+void main()
+{
+    float _25 = _28.y;
+    float _39 = _28.x - 0.5;
+    float _34 = (_39 * 0.119999997317790985107421875) * (_25 + 1.0);
+    float _46 = (_52._m20 * (-20.0)) + (_25 * 400.0);
+    float _64 = cos(_46);
+    float _67 = sin(_46);
+    float _70 = 0.00200000009499490261077880859375;
+    float _72 = _70 * (_64 + 2.5);
+    _25 = mod(_25, _70);
+    vec2 _86 = vec2(_25, _34 - (_67 * 0.0500000007450580596923828125));
+    float _94 = float(dot(_86, _86) < (_72 * _72));
+    float _104 = texture(_108, vec2(_34 * 4.0, _52._m20 * 0.100000001490116119384765625)).x;
+    _104 *= (1.0 - sqrt(abs(_39) * 2.0));
+    _94 = max(_104, _94);
+    vec2 _133 = vec2(0.5, 0.0500000007450580596923828125) - _28;
+    _133.y *= ((_28.y > 0.0500000007450580596923828125) ? 0.550000011920928955078125 : 10.0);
+    float _147 = max(0.0, 1.0 - (dot(_133, _133) * 4.0));
+    _94 *= _147;
+    _158 = vec4(_160.xyz * 12.0, _160.w * _94);
+    float _180 = 1.0 / gl_FragCoord.w;
+    float _181 = 256.0;
+    float _204 = max(log(_180 * 20.0) * (_181 * 0.079292468726634979248046875), 0.0);
+    _174 = vec4(_204, 0.0, 0.0, _160.w * _94);
+}
+

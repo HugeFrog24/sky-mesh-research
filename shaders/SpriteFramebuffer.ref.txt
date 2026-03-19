@@ -1,0 +1,11 @@
+a_color
+a_position
+a_uv0
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+u_color
+u_texture
+v_colorVarying
+v_texUv

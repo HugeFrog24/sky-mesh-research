@@ -1,0 +1,7 @@
+a_position
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+o_fragColor0
+o_fragColor1

@@ -1,0 +1,11 @@
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+o_fragColor
+u_texHi
+u_texSizeHi
+u_texSizeLo
+v_uv0
+v_uv01
+v_uv23

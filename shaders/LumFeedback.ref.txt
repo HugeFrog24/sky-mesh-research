@@ -1,0 +1,13 @@
+_pad
+eral" : [
+gl_PerVertex
+gl_PointSize
+gl_Position
+main
+o_fragColor
+o_output
+u_accumAmount
+u_averageLum
+u_bloom
+u_uvOffset
+v_logLum
